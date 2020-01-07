@@ -1,18 +1,17 @@
 package com.nikhil.apkextractor
 
+import android.Manifest
 import android.Manifest.permission.READ_EXTERNAL_STORAGE
 import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.os.Bundle
 import android.os.Environment
 import android.util.Log
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import kotlinx.android.synthetic.main.activity_main.*
 import java.io.File
 import java.io.FileInputStream
@@ -20,7 +19,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 
 
-class MainActivity : AppCompatActivity(), ActivityCompat.OnRequestPermissionsResultCallback {
+class MainActivity : AppCompatActivity() {
 
     // Storage Permissions
     private val REQUEST_EXTERNAL_STORAGE = 1
@@ -28,20 +27,15 @@ class MainActivity : AppCompatActivity(), ActivityCompat.OnRequestPermissionsRes
         READ_EXTERNAL_STORAGE,
         WRITE_EXTERNAL_STORAGE
     )
-    private val APK_DIRECTORY =
-        Environment.getExternalStorageDirectory().absolutePath + "/ApkExtractor"
-
-    private lateinit var recyclerView: RecyclerView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
 
-        recyclerView = findViewById(R.id.rv_apps)
-        recyclerView.layoutManager = LinearLayoutManager(this)
-
         verifyStoragePermissions(this)
+        // create dir if not created
+        createDir()
         //
         getListOfInstalledApps()
         //
@@ -57,7 +51,7 @@ class MainActivity : AppCompatActivity(), ActivityCompat.OnRequestPermissionsRes
     fun verifyStoragePermissions(activity: Activity) {
         // Check if we have write permission
         val permission =
-            ActivityCompat.checkSelfPermission(activity, WRITE_EXTERNAL_STORAGE)
+            ActivityCompat.checkSelfPermission(activity, Manifest.permission.WRITE_EXTERNAL_STORAGE)
 
         if (permission != PackageManager.PERMISSION_GRANTED) {
             // We don't have permission so prompt the user
@@ -69,38 +63,34 @@ class MainActivity : AppCompatActivity(), ActivityCompat.OnRequestPermissionsRes
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            // create dir if not created
-            createDir()
-        } else {
-            //Log permission denied
-        }
-    }
-
     private fun getListOfInstalledApps() {
         val mainIntent = Intent(Intent.ACTION_MAIN, null)
         mainIntent.addCategory(Intent.CATEGORY_LAUNCHER)
         val apps = packageManager.queryIntentActivities(mainIntent, 0)
         val packageNameList = mutableListOf<String>()
         for (app in apps) {
-            if (!isSystemPackage(app))
-                packageNameList.add(app.activityInfo.packageName)
+            packageNameList.add(app.activityInfo.packageName)
         }
-        recyclerView.adapter =
-            AppsAdapter(this, packageNameList) { packageName -> downloadAPK(packageName) }
+        Log.d("ApkExtractor", "package list = $packageNameList")
+        for (info: ResolveInfo in apps) {
+            val file = File(info.activityInfo.applicationInfo.publicSourceDir)
+            Log.d("ApkExtractor", "dir = ${info.activityInfo.applicationInfo.publicSourceDir}")
+//            if (info.activityInfo.applicationInfo.publicSourceDir == "/data/app/com.KCamsApp-mc4xED2hAlV-txbxWQvHUA==/base.apk") {
+            if (info.activityInfo.applicationInfo.publicSourceDir == "/data/app/com.transno.app-7GXoRl2HD9M7N5g3fYxbVw==/base.apk") {
+                //copy file from /data to /Custom_Folder
+                copyFile(
+                    File(info.activityInfo.applicationInfo.publicSourceDir),
+                    File(Environment.getExternalStorageDirectory().absolutePath + "/aaa/a.apk")
+                )
+            }
+        }
     }
 
     private fun createDir() {
-        val myDir: String = APK_DIRECTORY
-        Log.d("ApkExtractor", "dir = $APK_DIRECTORY")
-        val dir = File(myDir)
-        if (!dir.exists()) {
-            dir.mkdirs()
+        val myDir: String = Environment.getExternalStorageDirectory().absolutePath + "/aaa/"
+        val walpy = File(myDir)
+        if (!walpy.exists()) {
+            walpy.mkdirs()
         }
     }
 
@@ -120,15 +110,5 @@ class MainActivity : AppCompatActivity(), ActivityCompat.OnRequestPermissionsRes
 
         var2.close()
         var3.close()
-    }
-
-    private fun downloadAPK(packageName: String) {
-        Toast.makeText(this, "Apk clicked", Toast.LENGTH_SHORT).show()
-        val info = this.packageManager.getApplicationInfo(packageName, 0)
-        val appName = getAppName(this, packageName)
-        copyFile(
-            File(info.publicSourceDir),
-            File("$APK_DIRECTORY/$appName.apk")
-        )
     }
 }
